@@ -1,3 +1,4 @@
+from sqlite3 import connect
 import threading
 import socket
 import psutil
@@ -18,15 +19,38 @@ class Agent:
             val = default
         self.msg = json.dumps({self.name: val})
 
+    def _connect(self, s, addr):
+        while True:
+            try:
+                s.connect(addr)
+                break
+            except socket.error:
+                print(
+                    f"[FAILED] Connection failed for agent '{self.name}', retrying..."
+                )
+                time.sleep(1)
+
     def run(self, interval=1):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((HOST, PORT))
+            self._connect(s, (HOST, PORT))
+
             while True:
                 s.sendall(self.msg.encode())
-                response = json.loads(s.recv(1024).decode())
-                self.msg = json.dumps({self.name: self.val(**response)})
-                print(f"[{self.name}] {response}")
+                response = s.recv(1024).decode()
+                if response:
+                    response = json.loads(response)
+                    self.msg = json.dumps({self.name: self.val(**response)})
+                    print(f"[{self.name}] {response}")
+                else:
+                    print(
+                        f"[FAILED] Received empty message for agent '{self.name}', reconnecting..."
+                    )
+                    time.sleep(1)
+                    retry = True
+                    break
                 time.sleep(interval)
+            if retry:
+                self.run()
 
 
 if __name__ == "__main__":
