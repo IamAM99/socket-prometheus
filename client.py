@@ -3,7 +3,7 @@ import psutil
 import time
 import json
 
-HOST = socket.gethostname()
+HOST = socket.gethostbyname(socket.gethostname())
 PORT = 8080
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

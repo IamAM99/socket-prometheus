@@ -2,7 +2,7 @@ import socket
 import json
 from prometheus_client import start_http_server, Gauge
 
-HOST = socket.gethostname()
+HOST = socket.gethostbyname(socket.gethostname())
 PORT = 8080
 PROMETHEUS_PORT = 8000
 g = Gauge("cpu_percent", "CPU usage percentage of the client")
