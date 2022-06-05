@@ -1,4 +1,3 @@
-from sqlite3 import connect
 import threading
 import socket
 import psutil
