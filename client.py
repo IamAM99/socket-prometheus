@@ -72,7 +72,7 @@ class Agent:
                 self.run(interval)
 
 
-def ping(ip: str = "www.google.com", *args, **kwargs):
+def ping(ip: str = "8.8.8.8", *args, **kwargs):
     if platform.system().lower() == "windows":
         p = "-n"
     else:
@@ -87,9 +87,11 @@ def ping(ip: str = "www.google.com", *args, **kwargs):
 if __name__ == "__main__":
     data_gen = dict(
         number_msg_sent_count={"gen": lambda *args, **kwargs: 1, "type": "counter",},
-        ping_to_google_ms={"gen": ping, "type": "gauge",},
+        ping_to_8_8_8_8_ms={"gen": ping, "type": "gauge",},
         delay_to_server_seconds={
-            "gen": lambda server_time, *args, **kwargs: time.time() - server_time,
+            "gen": lambda server_time, *args, **kwargs: time.time()
+            - server_time
+            - INTERVAL,
             "type": "gauge",
         },
         cpu_usage_percent={
