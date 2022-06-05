@@ -2,7 +2,7 @@ import threading
 import socket
 import json
 import time
-from prometheus_client import start_http_server, Gauge
+from prometheus_client import start_http_server, Gauge, Counter
 
 HOST = socket.gethostbyname(socket.gethostname())
 PORT = 8080
@@ -24,23 +24,31 @@ def client_thread(conn, addr):
                 if not msg:
                     break
                 msg = json.loads(msg.decode())
-                metric_type = msg.pop("type")
+                print(f"[{addr_str}] Data received!")
 
                 # make key names correspond to agent IP:PORT
                 agent = msg.pop("agent")
                 agent = agent.replace(".", "_").replace(":", "_")
-                for key in msg:
+                for key in list(msg):
                     msg["agent_" + agent + "_" + key] = msg.pop(key)
 
                 # set the prometheus metrics
                 if not metrics:
-                    print("here")
                     for key in msg:
-                        metrics.append(Gauge(key, ""))
-                for metric in metrics:
-                    metric.set(msg[metric._name])
+                        metric_type = msg[key]["type"]
+                        if metric_type == "gauge":
+                            metrics.append(Gauge(key, ""))
+                        elif metric_type == "counter":
+                            metrics.append(Counter(key, ""))
 
-                print(f"[{addr_str}] {msg}")
+                for metric in metrics:
+                    val = msg[metric._name]["val"]
+                    metric_type = msg[metric._name]["type"]
+
+                    if metric_type == "gauge":
+                        metric.set(val)
+                    elif metric_type == "counter":
+                        metric.inc(val)
 
             except ConnectionError:
                 print(f"[FAILED] {addr_str} connection interrupted")
@@ -58,4 +66,5 @@ if __name__ == "__main__":
 
         while True:
             conn, addr = s.accept()
+            print("hey")
             threading.Thread(target=client_thread, args=(conn, addr)).start()

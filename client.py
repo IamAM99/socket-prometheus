@@ -10,15 +10,14 @@ INTERVAL = 1  # seconds
 
 
 class Agent:
-    def __init__(self, data_gen: dict, metric_type: str):
+    def __init__(self, data_gen: dict):
         self.data_gen = data_gen
-        self.type = metric_type
         self.adr = "unknown"  # after connecting, it will be 'IP:PORT'
 
     def _get_data(self):
         data = {}
         for metric, generator in self.data_gen.items():
-            data[metric] = generator()
+            data[metric] = {"val": generator["gen"](), "type": generator["type"]}
         return data
 
     def _connect(self, s, addr, interval):
@@ -46,7 +45,7 @@ class Agent:
                     print(f"[{self.adr}] {response}")
 
                     # create the message json
-                    msg = {"agent": self.adr, "type": self.type}
+                    msg = {"agent": self.adr}
                     msg.update(self._get_data())
                     self.msg = json.dumps(msg)
 
@@ -70,9 +69,15 @@ class Agent:
 
 if __name__ == "__main__":
     data_gen = dict(
-        cpu_usage_percent=lambda *args, **kwargs: psutil.cpu_percent(),
-        cpu_freq_Mhz=lambda *args, **kwargs: psutil.cpu_freq().current,
+        cpu_usage_percent={
+            "gen": lambda *args, **kwargs: psutil.cpu_percent(),
+            "type": "gauge",
+        },
+        cpu_freq_Mhz={
+            "gen": lambda *args, **kwargs: psutil.cpu_freq().current,
+            "type": "gauge",
+        },
     )
-    agent = Agent(data_gen, "gauge")
+    agent = Agent(data_gen)
 
     agent.run()
