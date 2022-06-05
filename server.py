@@ -66,5 +66,4 @@ if __name__ == "__main__":
 
         while True:
             conn, addr = s.accept()
-            print("hey")
             threading.Thread(target=client_thread, args=(conn, addr)).start()
