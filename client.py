@@ -1,71 +1,83 @@
 import threading
+
+# import agents
 import socket
 import psutil
 import time
 import json
 
+# import os
+
+
 HOST = socket.gethostbyname(socket.gethostname())
 PORT = 8080
+INTERVAL = 1  # seconds
 
 
 class Agent:
-    def __init__(self, name, val_generator, default=None):
-        self.name = name
-        self.val = val_generator
-        if default is None:
-            val = self.val()
-        else:
-            val = default
-        self.msg = json.dumps({"name": self.name, "value": val})
+    def __init__(self, data_gen: dict, metric_type: str):
+        self.data_gen = data_gen
+        self.type = metric_type
+        self.adr = "unknown"  # after connecting, it will be 'IP:PORT'
 
-    def _connect(self, s, addr):
+    def _get_data(self):
+        data = {}
+        for metric, generator in self.data_gen.items():
+            data[metric] = generator()
+        return data
+
+    def _connect(self, s, addr, interval):
         while True:
             try:
                 s.connect(addr)
                 break
             except socket.error:
-                print(
-                    f"[FAILED] Connection failed for agent '{self.name}', retrying..."
-                )
-                time.sleep(1)
+                print(f"[FAILED] Connection failed for agent '{self.adr}', retrying...")
+                time.sleep(interval)
 
-    def run(self, interval=1):
+    def run(self, interval=INTERVAL):
+        retry = False
+
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            self._connect(s, (HOST, PORT))
+            self._connect(s, (HOST, PORT), interval)
+            self.adr = str(s.getsockname()[0]) + ":" + str(s.getsockname()[1])
 
             while True:
-                s.sendall(self.msg.encode())
                 response = s.recv(1024).decode()
+
                 if response:
+                    # print the server response
                     response = json.loads(response)
-                    self.msg = json.dumps(
-                        {"name": self.name, "value": self.val(**response)}
-                    )
-                    print(f"[{self.name}] {response}")
+                    print(f"[{self.adr}] {response}")
+
+                    # create the message json
+                    msg = {"agent": self.adr, "type": self.type}
+                    msg.update(self._get_data())
+                    self.msg = json.dumps(msg)
+
+                    # send the message
+                    s.sendall(self.msg.encode())
                 else:
                     print(
-                        f"[FAILED] Received empty message for agent '{self.name}', reconnecting..."
+                        f"[FAILED] Received empty message for agent '{self.adr}', reconnecting..."
                     )
-                    time.sleep(1)
+
+                    # reconnect after 'interval' seconds
+                    time.sleep(interval)
                     retry = True
                     break
+
                 time.sleep(interval)
+
             if retry:
-                self.run()
+                self.run(interval)
 
 
 if __name__ == "__main__":
-    agents = []
-    agents.append(
-        Agent("agent_cpu_usage_percent", lambda *args, **kwargs: psutil.cpu_percent())
+    data_gen = dict(
+        cpu_usage_percent=lambda *args, **kwargs: psutil.cpu_percent(),
+        cpu_freq_Mhz=lambda *args, **kwargs: psutil.cpu_freq().current,
     )
-    agents.append(
-        Agent(
-            "agent_delay_seconds",
-            lambda host_time, *args, **kwargs: time.time() - host_time,
-            default=0,
-        )
-    )
+    agent = Agent(data_gen, "gauge")
 
-    for agent in agents:
-        threading.Thread(target=agent.run, args=()).start()
+    agent.run()

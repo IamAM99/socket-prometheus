@@ -10,27 +10,43 @@ PROMETHEUS_PORT = 8000
 
 
 def client_thread(conn, addr):
-    metric = None
+    metrics = []
+    addr_str = str(addr[0]) + ":" + str(addr[1])
     with conn:
-        print(f"[CONNECTION] {addr} connected.")
+        print(f"[CONNECTION] {addr_str} connected.")
         while True:
-            # receive the data from the client
-            data = conn.recv(2048)
-            if not data:
+            try:
+                # send acknowledgement to the clinet
+                conn.sendall(json.dumps({"host_time": time.time()}).encode())
+
+                # receive the message from the client
+                msg = conn.recv(1024)
+                if not msg:
+                    break
+                msg = json.loads(msg.decode())
+                metric_type = msg.pop("type")
+
+                # make key names correspond to agent IP:PORT
+                agent = msg.pop("agent")
+                agent = agent.replace(".", "_").replace(":", "_")
+                for key in msg:
+                    msg["agent_" + agent + "_" + key] = msg.pop(key)
+
+                # set the prometheus metrics
+                if not metrics:
+                    print("here")
+                    for key in msg:
+                        metrics.append(Gauge(key, ""))
+                for metric in metrics:
+                    metric.set(msg[metric._name])
+
+                print(f"[{addr_str}] {msg}")
+
+            except ConnectionError:
+                print(f"[FAILED] {addr_str} connection interrupted")
                 break
-            msg = json.loads(data.decode())
-            print(f"[{addr[0]}:{addr[1]}] {msg}")
 
-            # set prometheus metric
-            if metric is None:
-                metric = Gauge(msg["name"], "")
-            metric.set(msg["value"])
-
-            # send acknowledgement to the clinet
-            conn.sendall(
-                json.dumps({"host_time": time.time(), "status": "ACK"}).encode()
-            )
-    print(f"[CONNECTION] {addr} disconnected.")
+    print(f"[CONNECTION] {addr_str} disconnected.")
 
 
 if __name__ == "__main__":
