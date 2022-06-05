@@ -1,12 +1,7 @@
-import threading
-
-# import agents
 import socket
 import psutil
 import time
 import json
-
-# import os
 
 
 HOST = socket.gethostbyname(socket.gethostname())
