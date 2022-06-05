@@ -17,7 +17,7 @@ def client_thread(conn, addr):
         while True:
             try:
                 # send acknowledgement to the clinet
-                conn.sendall(json.dumps({"host_time": time.time()}).encode())
+                conn.sendall(json.dumps({"server_time": time.time()}).encode())
 
                 # receive the message from the client
                 msg = conn.recv(1024)
