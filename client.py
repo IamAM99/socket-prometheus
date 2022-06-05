@@ -16,7 +16,7 @@ class Agent:
             val = self.val()
         else:
             val = default
-        self.msg = json.dumps({self.name: val})
+        self.msg = json.dumps({"name": self.name, "value": val})
 
     def _connect(self, s, addr):
         while True:
@@ -38,7 +38,9 @@ class Agent:
                 response = s.recv(1024).decode()
                 if response:
                     response = json.loads(response)
-                    self.msg = json.dumps({self.name: self.val(**response)})
+                    self.msg = json.dumps(
+                        {"name": self.name, "value": self.val(**response)}
+                    )
                     print(f"[{self.name}] {response}")
                 else:
                     print(

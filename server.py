@@ -7,20 +7,26 @@ from prometheus_client import start_http_server, Gauge
 HOST = socket.gethostbyname(socket.gethostname())
 PORT = 8080
 PROMETHEUS_PORT = 8000
-g = Gauge("agent_cpu_percent", "CPU usage percentage of the client")
-g.set(0.0)
 
 
 def client_thread(conn, addr):
+    metric = None
     with conn:
         print(f"[CONNECTION] {addr} connected.")
         while True:
+            # receive the data from the client
             data = conn.recv(2048)
             if not data:
                 break
             msg = json.loads(data.decode())
             print(f"[{addr[0]}:{addr[1]}] {msg}")
-            # g.set(msg["cpu_percent"])
+
+            # set prometheus metric
+            if metric is None:
+                metric = Gauge(msg["name"], "")
+            metric.set(msg["value"])
+
+            # send acknowledgement to the clinet
             conn.sendall(
                 json.dumps({"host_time": time.time(), "status": "ACK"}).encode()
             )
