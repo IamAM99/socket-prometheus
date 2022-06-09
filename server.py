@@ -9,8 +9,7 @@ PORT = 8080
 PROMETHEUS_PORT = 8000
 
 
-def client_thread(conn, addr):
-    metrics = []
+def client_thread(conn, addr, metrics):
     addr_str = str(addr[0]) + ":" + str(addr[1])
     with conn:
         print(f"[CONNECTION] {addr_str} connected.")
@@ -26,29 +25,18 @@ def client_thread(conn, addr):
                 msg = json.loads(msg.decode())
                 print(f"[{addr_str}] Data received!")
 
-                # make key names correspond to agent IP:PORT
-                agent = msg.pop("agent")
-                agent = agent.replace(".", "_").replace(":", "_")
-                for key in list(msg):
-                    msg["agent_" + agent + "_" + key] = msg.pop(key)
+                # get the agent name (it is IP:PORT in our clients)
+                agent_name = msg.pop("agent")
 
-                # set the prometheus metrics
-                if not metrics:
-                    for key in msg:
-                        metric_type = msg[key]["type"]
-                        if metric_type == "gauge":
-                            metrics.append(Gauge(key, ""))
-                        elif metric_type == "counter":
-                            metrics.append(Counter(key, ""))
-
+                # pass the metrics to prometheus
                 for metric in metrics:
                     val = msg[metric._name]["val"]
                     metric_type = msg[metric._name]["type"]
 
                     if metric_type == "gauge":
-                        metric.set(val)
+                        metric.labels(agent_name).set(val)
                     elif metric_type == "counter":
-                        metric.inc(val)
+                        metric.labels(agent_name).inc(val)
 
             except ConnectionError:
                 print(f"[FAILED] {addr_str} connection interrupted")
@@ -58,7 +46,33 @@ def client_thread(conn, addr):
 
 
 if __name__ == "__main__":
+    # prometheus metric names
+    metric_names = {
+        "number_msg_sent_count": "counter",
+        "ping_to_8_8_8_8_ms": "gauge",
+        "delay_to_server_seconds": "gauge",
+        "cpu_usage_percent": "gauge",
+        "cpu_freq_Mhz": "gauge",
+        "virtual_memory_usage_percent": "gauge",
+        "swap_memory_usage_percent": "gauge",
+        "network_sent_bytes": "gauge",
+        "network_recv_bytes": "gauge",
+        "network_sent_packets_count": "gauge",
+        "network_recv_packets_count": "gauge",
+    }
+
+    # initialize prometheus metrics
+    metrics = []
+    for name, metric_type in metric_names.items():
+        if metric_type == "gauge":
+            metrics.append(Gauge(name, "", ["adr"]))
+        elif metric_type == "counter":
+            metrics.append(Counter(name, "", ["adr"]))
+
+    # start the prometheus client
     start_http_server(PROMETHEUS_PORT)
+
+    # start the server
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind((HOST, PORT))
         s.listen()
@@ -66,4 +80,4 @@ if __name__ == "__main__":
 
         while True:
             conn, addr = s.accept()
-            threading.Thread(target=client_thread, args=(conn, addr)).start()
+            threading.Thread(target=client_thread, args=(conn, addr, metrics)).start()
